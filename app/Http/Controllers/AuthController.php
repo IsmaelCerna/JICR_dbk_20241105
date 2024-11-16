@@ -2,95 +2,87 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-
-    public function register(Request $request)
-    {
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|min:3',
-            'email' => 'required|string|email|unique:users',
-            'password' => 'required|string|min:8',
+    //
+    public function register(Request $request){
+        $validatedData = $request->validate([
+            'name'=>['required','string','max:255'],
+            'email'=>['required','string','email','max:255','unique:users'],
+            'password'=>['required','string','min:8','max:20'],
         ]);
-
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ]);
-        }
-
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'name'=> $validatedData['name'],
+            'email'=> $validatedData['email'],
+            'password'=> Hash::make($validatedData['password']),
         ]);
 
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'success' => true,
+            "success"=> true,
+            "errors"=>[
+                "code"=>0,
+                "msg"=>""
+            ],
+            "data"=>[
+                "access_token"=>$token,
+                "token_type" => "Bearer"
+            ],
+            "msg"=>"Usuario creado satisfactoriamente",
+            "count"=>1
         ]);
     }
 
-    // Endpoint para el login de usuario
-    public function login(Request $request)
-    {
-
-        $credentials = $request->only('email', 'password');
 
 
-        if (!Auth::attempt($credentials)) {
-            return response()->json([
-                'success' => false,
-                'errors' => ['email' => ['Credenciales no válidas']],
+    public function login(Request $request) {
+        if(!Auth::attempt($request->only( "email","password"))){
+            return response()->json( [
+                "success"=> false,
+                "errors"=>[
+                    "code"=>401,
+                    "msg"=> "No se reconocen las credenciales"
+                ],
+                "data"=>"",
+                "count"=> 0
             ], 401);
+
         }
+        $user = User::where("email", $request->email)->firstOrFail();
+        $token = $user->createToken("auth_token")->plainTextToken;
 
-
-        $token = Auth::user()->createToken('authToken')->plainTextToken;
-
-        // Trama de salida con el token de autenticación
-        return response()->json([
-            'success' => true,
-            'token' => $token,
-        ]);
+        return response()->json( [
+            "success"=> true,
+            "errors"=>[
+                "code"=>200,
+                "msg"=> ""
+            ],
+            "data"=>[
+                "access_token"=>$token,
+                "token_type"=> "Bearer"
+            ],
+            "count"=> 1
+        ], 200);
+    
+    
     }
 
-
-    public function getUserDetails(Request $request)
-    {
-
-        $user = $request->user();
-
-        return response()->json([
-            "success" => true,
-
-            "errors" => [
-                "code" => null,
-                "msg" => null
+    public function me(Request $request) {
+        return response()->json( [
+            "success"=> true,
+            "errors"=>[
+                "code"=>200,
+                "msg"=> ""
             ],
-
-            "data" => [
-                "id" => $user->id,
-                "name" => $user->name,
-                "email" => $user->email,
-                "email_verified_at" => $user->email_verified_at,
-                "created_at" => $user->created_at,
-                "updated_at" => $user->updated_at,
-            ],
-
-            "msg" => "Detalles del usuario obtenidos correctamente",
-
-            "count" => 1
-        ]);
+            "data"=>$request->user(),
+            "count"=> 1
+        ], 200);
     }
 }
